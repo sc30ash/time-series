@@ -1,0 +1,478 @@
+---
+title: "Solar Flares Prediction using Sattelite Data"
+author: "By Ashmit Bhardwaj and Siddharth Haveliwala"
+format: revealjs
+editor: source
+toc: true
+toc-depth: 1
+slide-number: true
+smaller: false
+scrollable: true 
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include=FALSE}
+library(dlm)
+library(ggplot2)
+library(gplots)
+library(forecast)
+library(legion)
+library(vars)
+setwd("/Users/siddharthhaveliwala/Documents/Spring 2024/Courses/CDA 500 - Time Series Analysis/Presentation")
+normalized.db <- read.csv('normalized_data.csv')
+original.db <- read.csv('original_data.csv')
+
+num_rows <- nrow(original.db)
+date_sequence <- seq(0, length.out = num_rows)
+
+# Add the time column to your dataframe
+original.db$time <- date_sequence
+```
+
+```{r setup, include=FALSE}
+# Set up chunk for all slides
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  cache = TRUE,
+  dev.args = list(pointsize = 11)
+)
+```
+
+# The Problem
+
+-   Solar Flares are sudden and intense bursts of energy on the surface of sun. Most of the times, these only stay along the surface or affect the outer atmosphere of the sun.
+
+## Why we care about it?
+
+-   Well as mentioned, only "most of the times". A few times, they are significant enough to disrupt earth's atmosphere, cause damage to the ozone layer and even interfere with our cell, sattelite and radio signals.
+
+![](https://scx2.b-cdn.net/gfx/news/hires/2022/small-solar-flares-in.jpg)
+
+# The solution
+
+-   To mitigate the impact of solar flares, it is crucial to develop a reliable prediction system using satellite data and timely warn the public about potential flares.
+
+![](https://www.nasa.gov/wp-content/uploads/2023/03/suvi_horz2.png) \# The Dataset The SWAN-SF dataset refers to the Solar Wind Analysis System (SWAN) dataset specifically focused on Solar Flares (SF). Let's break down what each part of the name means:
+
+## Solar Wind Analysis System (SWAN):
+
+-   SWAN is a system designed to analyze and interpret solar wind data obtained from various sources, such as satellites and ground-based instruments.
+-   It provides valuable information about the solar wind's properties, such as velocity, density, temperature, and magnetic field strength.
+-   SWAN helps researchers and scientists study the dynamics of solar wind and its interactions with Earth's magnetosphere.
+-   It contains 57 different features of solar surface.
+
+## SWAN-SF Dataset:
+
+-   The SWAN-SF dataset is a specialized dataset derived from SWAN observations, focusing specifically on parameters related to solar flares.
+-   It includes data such as solar flare occurrences, intensity, duration, associated solar wind properties, magnetic field variations, and other relevant solar and space weather parameters.
+-   We can use the SWAN-SF dataset to study the relationship between solar flares and solar wind characteristics, develop predictive models for solar flares, understand space weather phenomena, and improve space weather forecasting capabilities.
+
+# How to get started?
+
+-   ⁠In reading the existing work done by the teams in this field, we found that the three most important variables to be predicted are duration, X-Ray emissions and fluorescence.
+-   ⁠Every solar flare produces these 3 factors. These factors are the ones which decide how major of a threat could a particular solar flare be.
+-   ⁠Hence, in predicting these three features and finding a certain threshold above which these three combined can be harmful, we can forecast our time series and predict the next time a solar flare can cause substantial damage.
+
+# ACF Plots
+
+```{r}
+# Plot ACF for fluorescence
+acf(original.db$fluorescence, main = "ACF for Fluorescence")
+```
+
+# ACF Plots
+
+```{r}
+# Plot ACF for Flare_time
+acf(original.db$Flare_time, main = "ACF for Flare_time")
+```
+
+# ACF Plots
+
+```{r}
+# Plot ACF for XRAY
+acf(original.db$XRAY, main = "ACF for XRAY")
+```
+
+```{r, include=FALSE}
+# Apply exponential smoothing to each column
+smoothed_exp_fluorescence <- HoltWinters(original.db$fluorescence, beta = FALSE, gamma = FALSE, alpha=0.3)
+smoothed_exp_Flare_time <- HoltWinters(original.db$Flare_time, beta = FALSE, gamma = FALSE, alpha=0.3)
+smoothed_exp_XRAY <- HoltWinters(original.db$XRAY, beta = FALSE, gamma = FALSE, alpha=0.3)
+
+# Extract the smoothed values
+smoothed_values_fluorescence <- fitted(smoothed_exp_fluorescence)
+smoothed_values_Flare_time <- fitted(smoothed_exp_Flare_time)
+smoothed_values_XRAY <- fitted(smoothed_exp_XRAY)
+
+# Extract the time vector
+time_vector <- original.db$time
+
+# Trim the time vector to match the length of smoothed values vector
+time_vector <- time_vector[-length(time_vector)]
+
+```
+
+# Exponential Smoothing
+
+```{r}
+plot(time_vector, original.db$fluorescence[-length(original.db$fluorescence)], type = "l", main = "Original vs Exponential Smoothed Fluorescence Data", xlab = "Time", ylab = "Fluorescence", col='gray')
+lines(time_vector, smoothed_values_fluorescence[ , 2], col = "red")
+```
+
+# Exponential Smoothing
+
+```{r}
+plot(time_vector, original.db$Flare_time[-length(original.db$Flare_time)], type = "l", main = "Original vs Exponential Smoothed Flare_time Data", xlab = "Time", ylab = "Flare_time", col='gray')
+lines(time_vector, smoothed_values_Flare_time[ , 2], col = "red")
+```
+
+# Exponential Smoothing
+
+```{r}
+plot(time_vector, original.db$XRAY[-length(original.db$XRAY)], type = "l", main = "Original vs Exponential Smoothed XRAY Data", xlab = "Time", ylab = "XRAY", col='gray')
+lines(time_vector, smoothed_values_XRAY[ , 2], col = "red")
+```
+
+```{r, include=FALSE}
+original.db <- original.db[-1, ]
+
+original.db$fluorescence <- smoothed_values_fluorescence[ , 2]
+original.db$Flare_time <- smoothed_values_Flare_time[ , 2]
+original.db$XRAY <- smoothed_values_XRAY[ , 2]
+original.db <- subset(original.db, select = -c(Date))
+
+
+# Create a correlation matrix
+correlation_matrix <- round(cor(original.db),1)
+```
+
+# Correlation Plot
+
+```{r}
+heatmap.2(correlation_matrix, 
+          col = colorRampPalette(c("blue", "white", "red"))(100))  # Size of annotation text
+```
+
+```{r, include=FALSE}
+# Create data frames for each target variable
+flare_time_pred_df <- data.frame(variable = names(original.db))
+fluorescence_pred_df <- data.frame(variable = names(original.db))
+XRAY_pred_df <- data.frame(variable = names(original.db))
+
+# Compute the correlation matrix
+correlation_matrix <- cor(original.db)
+
+# Get variables with correlation above +-0.05 for Flare_time
+variables_above_threshold <- names(which(abs(correlation_matrix["Flare_time", ]) > 0.05))
+
+# Extract data for Flare_time_pred_df
+flare_time_pred_df <- original.db[, c("time", variables_above_threshold)]
+
+# Repeat the process for fluorescence and XRAY
+
+# Get variables with correlation above +-0.05 for Fluorescence
+variables_above_threshold <- names(which(abs(correlation_matrix["fluorescence", ]) > 0.05))
+
+# Extract data for Fluorescence_pred_df
+fluorescence_pred_df <- original.db[, c("time", variables_above_threshold)]
+
+# Get variables with correlation above +-0.05 for XRAY
+variables_above_threshold <- names(which(abs(correlation_matrix["XRAY", ]) > 0.05))
+
+# Extract data for XRAY_pred_df
+XRAY_pred_df <- original.db[, c("time", variables_above_threshold)]
+
+XRAY_pred_df <- subset(XRAY_pred_df, select = -c(time, fluorescence))
+fluorescence_pred_df <- subset(fluorescence_pred_df, select = -c(time, XRAY, Flare_time))
+flare_time_pred_df <- subset(flare_time_pred_df, select = -c(time, fluorescence))
+
+
+fluorescence_ts <- ts(fluorescence_pred_df$fluorescence)
+other_variables_ts <- lapply(fluorescence_pred_df[-length(fluorescence_pred_df)], ts)
+# Compute lagged correlation between fluorescence and other variables
+lagged_correlations <- lapply(other_variables_ts, function(x) {
+  ccf_result <- ccf(fluorescence_ts, x, lag.max = 10)
+  if (length(ccf_result$acf) < 21) {
+    warning(paste("Insufficient observations for variable:", deparse(substitute(x))))
+    return(rep(NA, 21))
+  } else {
+    return(ccf_result$acf)
+  }
+})
+
+# Define lag values
+lags <- seq(-10, 10)
+
+```
+
+# Lagged Correlation Plot
+
+```{r}
+# Plot lagged correlations
+matplot(lags, sapply(lagged_correlations, function(x) x), type = "l", xlab = "Lag", ylab = "Correlation", main = "Lagged Correlation with Fluorescence")
+
+# Add legend
+legend("topright", legend = names(lagged_correlations), col = 1:length(lagged_correlations), lty = 1:length(lagged_correlations), cex = 0.8)
+```
+
+```{r, include=FALSE}
+# Convert dataframe to time series
+flare_time_ts <- ts(flare_time_pred_df$Flare_time)
+other_variables_ts <- lapply(flare_time_pred_df[-length(flare_time_pred_df)], ts)
+
+# Compute lagged correlation between flare_time and other variables
+lagged_correlations <- lapply(other_variables_ts, function(x) {
+  ccf_result <- ccf(flare_time_ts, x, lag.max = 10)
+  if (length(ccf_result$acf) < 21) {
+    warning(paste("Insufficient observations for variable:", deparse(substitute(x))))
+    return(rep(NA, 21))
+  } else {
+    return(ccf_result$acf)
+  }
+})
+
+# Define lag values
+lags <- seq(-10, 10)
+```
+
+# Lagged Correlation Plot
+
+```{r}
+# Plot lagged correlations
+matplot(lags, sapply(lagged_correlations, function(x) x), type = "l", xlab = "Lag", ylab = "Correlation", main = "Lagged Correlation with Flare_time")
+
+# Add legend
+legend("topright", legend = names(lagged_correlations), col = 1:length(lagged_correlations), lty = 1:length(lagged_correlations), cex = 0.8)
+```
+
+```{r, include=FALSE}
+# Convert dataframe to time series
+XRAY_ts <- ts(XRAY_pred_df$XRAY)
+other_variables_ts <- lapply(XRAY_pred_df[-length(XRAY_pred_df)], ts)
+
+# Compute lagged correlation between XRAY and other variables
+lagged_correlations <- lapply(other_variables_ts, function(x) {
+  ccf_result <- ccf(XRAY_ts, x, lag.max = 10)
+  if (length(ccf_result$acf) < 21) {
+    warning(paste("Insufficient observations for variable:", deparse(substitute(x))))
+    return(rep(NA, 21))
+  } else {
+    return(ccf_result$acf)
+  }
+})
+
+# Define lag values
+lags <- seq(-10, 10)
+```
+
+# Lagged Correlation Plot
+
+```{r}
+# Plot lagged correlations
+matplot(lags, sapply(lagged_correlations, function(x) x), type = "l", xlab = "Lag", ylab = "Correlation", main = "Lagged Correlation with XRAY")
+
+# Add legend
+legend("topright", legend = names(lagged_correlations), col = 1:length(lagged_correlations), lty = 1:length(lagged_correlations), cex = 0.8)
+```
+
+```{r, include=FALSE}
+# Function to perform min-max normalization
+min_max_normalization <- function(df) {
+  normalized_df <- as.data.frame(lapply(df, function(x) {
+    (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+  }))
+  return(normalized_df)
+}
+
+
+# Function to fit ARIMA models and show diagnostics
+# Function to fit ARIMA models and find the best model based on RMSE
+fit_best_arima_and_diagnostics <- function(dataframe, variable_name) {
+  
+  predictor_variables <- dataframe[-length(dataframe)]
+  predictor_variables <- predictor_variables[-length(predictor_variables)]
+  
+  predictor_variables <- min_max_normalization(predictor_variables)
+  model <- auto.arima(dataframe[[variable_name]], xreg = as.matrix(predictor_variables))
+    
+  #print(summary(model))
+  # Return the best model
+  return(model)
+}
+
+fit_best_ets_and_diagnostics <- function(dataframe, variable_name) {
+  # Extract predictor variables and perform min-max normalization
+  dataframe[-ncol(dataframe)] <- min_max_normalization(dataframe[-ncol(dataframe)])
+  
+  # Fit ETS model
+  model <- VAR(dataframe)
+  # Summary statistics for the VAR model
+  
+  # Return the best model
+  return(model)
+}
+
+# Apply VAR models and show diagnostics for flare_time_pred_df
+flare_time_model <- fit_best_ets_and_diagnostics(flare_time_pred_df, "Flare_time")
+summary_var_flare <- summary(flare_time_model)
+
+# Apply VAR models and show diagnostics for fluorescence_pred_df
+fluorescence_model <- fit_best_ets_and_diagnostics(fluorescence_pred_df, "fluorescence")
+summary_var_fl <- summary(fluorescence_model)
+
+# Apply VAR models and show diagnostics for XRAY_pred_df
+XRAY_model <- fit_best_ets_and_diagnostics(XRAY_pred_df, "XRAY")
+summary_var_xray <- summary(XRAY_model)
+
+```
+
+## Models Used: ARIMA
+
+-   Auto ARIMA is an automated algorithm for selecting the optimal parameters (order of autoregression and moving average) for an ARIMA time series model based on statistical criteria.
+-   It iteratively searches through a range of possible parameter combinations to find the model with the lowest information criterion, providing a convenient and efficient method for time series forecasting without the need for manual parameter tuning.
+
+$$
+     y_t = \beta_0 + \beta_1 x_{1,t} + \beta_2 x_{2,t} + \ldots + \beta_k x_{k,t} + \phi_1 y_{t-1} + \ldots + \phi_p y_{t-p} + \theta_1 \varepsilon_{t-1} + \ldots + \theta_q \varepsilon_{t-q} + \varepsilon_t 
+$$
+
+## Models Used: Vector Auto Regressor
+
+-   Vector Auto Regressor (VAR) is a multivariate time series model that captures the interdependencies among multiple time series variables by regressing each variable on its lagged values and the lagged values of other variables in the system.
+-   It allows for the analysis of the dynamic relationships and interactions between different variables over time, making it a powerful tool for forecasting and understanding complex systems.
+
+$$
+      \mathbf{Y}_t = \mathbf{A}_1 \mathbf{Y}_{t-1} + \mathbf{A}_2 \mathbf{Y}_{t-2} + \ldots + \mathbf{A}_p \mathbf{Y}_{t-p} + \mathbf{B} \mathbf{X}_t + \mathbf{E}_t
+$$
+
+# ARIMA on Flare Time
+
+```{r}
+# Apply ARIMA models and show diagnostics for flare_time_pred_df
+flare_time_arima_model <- fit_best_arima_and_diagnostics(flare_time_pred_df, "Flare_time")
+```
+
+## Model Diagnostics (Flare Time)
+
+![](TIME.jpeg)
+
+# ARIMA on Fluorescence
+
+```{r}
+# Apply ARIMA models and show diagnostics for fluorescence_pred_df
+fluorescence_arima_model <- fit_best_arima_and_diagnostics(fluorescence_pred_df, "fluorescence")
+```
+
+## Model Diagnostics (Flourescence)
+
+![](FLO.jpeg)
+
+# ARIMA on X-Ray
+
+```{r}
+# Apply ARIMA models and show diagnostics for XRAY_pred_df
+XRAY_arima_model <- fit_best_arima_and_diagnostics(XRAY_pred_df, "XRAY")
+```
+
+## Model Diagnostics (X-RAY)
+
+![](XRAY.jpeg)
+
+# VAR for X-Ray
+
+```{r}
+print(summary_var_xray$varresult$XRAY)
+```
+
+# VAR for Fluorescence
+
+```{r}
+print(summary_var_fl$varresult$fluorescence)
+```
+
+# VAR for Flare Time
+
+```{r}
+print(summary_var_flare$varresult$Flare_time)
+```
+
+```{r, include=FALSE}
+# Creating the dataframe
+model_comparison <- data.frame(
+  Variable = c("XRAY", "Fluorescence", "Flare Time"),
+  RMSE_VAR = c(6.741, 6.74E-05, 8.31),
+  RMSE_ARIMA = c(7.07, 6.82E-05, 8.33),
+  STD = c(2.788062369, 0.0000230776, 2.258064878)
+)
+```
+
+# Model Comparison
+
+```{r}
+print(model_comparison)
+```
+
+```{r, include=FALSE}
+set.seed(123)
+ts_data_flare<- ts(flare_time_pred_df$Flare_time)
+ts_data_fluo<- ts(fluorescence_pred_df$fluorescence)
+ts_data_xray<- ts(XRAY_pred_df$XRAY)
+
+# Fit an ARIMA model automatically using auto.arima
+fit_flare <- auto.arima(ts_data_flare)
+fit_fluo <- auto.arima(ts_data_fluo)
+fit_xray <- auto.arima(ts_data_xray)
+
+# Forecast future values
+forecast_values_flare <- forecast(fit_flare, h = 20) # Forecasting 12 months ahead
+forecast_values_fluo <- forecast(fit_fluo, h = 20) # Forecasting 12 months ahead
+forecast_values_xray <- forecast(fit_xray, h = 20) # Forecasting 12 months ahead
+
+# Predict next 20 time steps for each model
+forecast_flare_time <- predict(flare_time_model, n.ahead = 20)
+forecast_fluorescence <- predict(fluorescence_model, n.ahead = 20)
+forecast_XRAY <- predict(XRAY_model, n.ahead = 20)
+```
+
+## ARIMA Forecast - Flare Duration
+
+```{r}
+print(forecast_values_flare)
+```
+
+## VAR Forecast - Flare Duration
+
+```{r}
+print(forecast_flare_time$fcst$Flare_time)
+```
+
+## ARIMA Forecast - Fluorescence
+
+```{r}
+print(forecast_values_fluo)
+```
+
+## VAR Forecast - Fluorescence
+
+```{r}
+print(forecast_fluorescence$fcst$fluorescence)
+```
+
+## ARIMA Forecast - X-Ray
+
+```{r}
+print(forecast_values_xray)
+```
+
+## VAR Forecast - X-Ray
+
+```{r}
+print(forecast_XRAY$fcst$XRAY)
+```
+
+# Conclusion
+
+# Q&A
