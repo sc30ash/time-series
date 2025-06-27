@@ -357,7 +357,7 @@ flare_time_arima_model <- fit_best_arima_and_diagnostics(flare_time_pred_df, "Fl
 
 ## Model Diagnostics (Flare Time)
 
-![](TIME.jpeg)
+![](index_files/figure-revealjs/TIME.jpeg)
 
 # ARIMA on Fluorescence
 
@@ -368,7 +368,7 @@ fluorescence_arima_model <- fit_best_arima_and_diagnostics(fluorescence_pred_df,
 
 ## Model Diagnostics (Flourescence)
 
-![](FLO.jpeg)
+![](index_files/figure-revealjs/FLO.jpeg)
 
 # ARIMA on X-Ray
 
@@ -379,7 +379,7 @@ XRAY_arima_model <- fit_best_arima_and_diagnostics(XRAY_pred_df, "XRAY")
 
 ## Model Diagnostics (X-RAY)
 
-![](XRAY.jpeg)
+![](index_files/figure-revealjs/XRAY.jpeg)
 
 # VAR for X-Ray
 
